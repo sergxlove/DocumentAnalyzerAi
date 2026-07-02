@@ -38,16 +38,34 @@ namespace DocumentAnalyzer.Core.Services
                 "1. Если ответа нет в документе — скажи: 'В документе нет такой информации'. " +
                 "2. ОБЯЗАТЕЛЬНО указывай, из какого раздела/пункта взят ответ. " +
                 "3. Если информация в разных местах — собери её и укажи все пункты. " +
-                "Отвечай на русском языке. " +
+                "Отвечай на русском языке. Без символов разметки, только текст. " +
                 "Вот текст документа: " +
                 $"{textDocuments}");
         }
 
-        public async Task<string?> SendMessageAsync(string message, CancellationToken token)
+        public async Task<string> SendMessageAsync(string message, CancellationToken token)
         {
             _history.AddUserMessage(message);
-            var result = await _chat.GetChatMessageContentsAsync(_history, _settings, _kernel);
-            return result[^1].Content;
+            var result = await _chat.GetChatMessageContentsAsync(_history, _settings, _kernel, token);
+            return CleanResponse(result[^1].Content!);
+        }
+
+        private string CleanResponse(string content)
+        {
+            var sb = new StringBuilder(content.Length);
+            for (int i = 0; i < content.Length; i++)
+            {
+                char c = content[i];
+                //if (c == '\n')
+                //    continue;
+                if (c == '*' && i + 1 < content.Length && content[i + 1] == '*')
+                {
+                    i++; 
+                    continue;
+                }
+                sb.Append(c);
+            }
+            return sb.ToString().Trim();
         }
     }
 }
