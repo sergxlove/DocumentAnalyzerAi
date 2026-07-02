@@ -1,0 +1,209 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ИИ-Агент | Помощник по документам</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="avatar"></div>
+            <div class="info">
+                <h1>ИИ-Агент "Логистик МС"</h1>
+                <p>Помощник по документам компании</p>
+            </div>
+        </div>
+        <div class="messages-area" id="messagesArea">
+            <div class="welcome-message" id="welcomeMessage">
+                <span class="welcome-icon">👋</span>
+                <h2>Задайте вопрос по документу</h2>
+                <p>Я помогу найти ответ с указанием конкретных пунктов и разделов.</p>
+                <div class="welcome-hint">
+                    <span>⌨</span> Напишите вопрос в поле ниже
+                </div>
+            </div>
+            <div class="typing-indicator" id="typingIndicator">
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+            </div>
+        </div>
+        <div class="input-area">
+            <textarea id="messageInput"
+                      placeholder="Введите ваш вопрос..."
+                      rows="1"
+                      maxlength="4000"></textarea>
+            <button id="sendButton">
+                <span class="spinner"></span>
+                <span class="button-text">➤ Отправить</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/send';
+        const messagesArea = document.getElementById('messagesArea');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const welcomeMessage = document.getElementById('welcomeMessage');
+        let isProcessing = false;
+        function convertNewLines(text) {
+            if (!text) return '';
+            let result = text
+                .replace(/\\n/g, '<br>')      
+                .replace(/\n/g, '<br>');       
+
+            return result;
+        }
+        function formatUserText(text) {
+            if (!text) return '';
+            let formatted = text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+            formatted = convertNewLines(formatted);
+
+            return formatted;
+        }
+        function parseMarkdown(text) {
+            if (!text) return '';
+            let html = convertNewLines(text);
+            html = html
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+            html = html.replace(/&lt;br&gt;/g, '<br>');
+            html = html.replace(/```([\s\S]*?)```/g, (_, code) => {
+                return `<pre><code>${code.trim()}</code></pre>`;
+            });
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+            html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+            html = html.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+            html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
+            html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+            html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+            html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+            html = html.replace(/^> (.+)$/gm, (_, text) => {
+                return `<blockquote>${text}</blockquote>`;
+            });
+            html = html.replace(/^---$/gm, '<hr>');
+            html = html.replace(/^\*\*\*$/gm, '<hr>');
+            html = html.replace(/^[-*]\s+(.+)$/gm, (_, text) => {
+                return `<li>${text}</li>`;
+            });
+            html = html.replace(/^\d+\.\s+(.+)$/gm, (_, text) => {
+                return `<li>${text}</li>`;
+            });
+            html = html.replace(/(<li>[\s\S]*?<\/li>)/g, (match) => {
+                if (match.includes('<li>')) {
+                    return `<ul>${match}</ul>`;
+                }
+                return match;
+            });
+            html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => {
+                return `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+            });
+            return html;
+        }
+        function addMessage(content, sender = 'assistant') {
+            if (welcomeMessage) {
+                welcomeMessage.style.display = 'none';
+            }
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            if (sender === 'assistant') {
+                contentDiv.innerHTML = parseMarkdown(content);
+            } else {
+                contentDiv.innerHTML = formatUserText(content);
+            }
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'message-time';
+            timeSpan.textContent = new Date().toLocaleTimeString('ru-RU', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            messageDiv.appendChild(contentDiv);
+            messageDiv.appendChild(timeSpan);
+            const typingEl = document.getElementById('typingIndicator');
+            if (typingEl) {
+                messagesArea.insertBefore(messageDiv, typingEl);
+            } else {
+                messagesArea.appendChild(messageDiv);
+            }
+            scrollToBottom();
+            return messageDiv;
+        }
+        function setTypingVisible(visible) {
+            typingIndicator.classList.toggle('active', visible);
+            scrollToBottom();
+        }
+        function scrollToBottom() {
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+        function autoResize() {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = Math.min(messageInput.scrollHeight, 160) + 'px';
+        }
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message || isProcessing) return;
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            addMessage(message, 'user');
+            isProcessing = true;
+            sendButton.disabled = true;
+            sendButton.classList.add('loading');
+            setTypingVisible(true);
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message }),
+                });
+                setTypingVisible(false);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Ошибка ${response.status}: ${errorText || 'Неизвестная ошибка'}`);
+                }
+                const result = await response.text();
+                if (result && result.trim()) {
+                    addMessage(result, 'assistant');
+                } else {
+                    addMessage('❌ Получен пустой ответ от сервера', 'assistant');
+                }
+            } catch (error) {
+                setTypingVisible(false);
+                console.error('Ошибка:', error);
+                addMessage(`❌ **Ошибка:** ${error.message || 'Не удалось отправить сообщение'}`, 'assistant');
+            } finally {
+                isProcessing = false;
+                sendButton.disabled = false;
+                sendButton.classList.remove('loading');
+                messageInput.focus();
+            }
+        }
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        messageInput.addEventListener('input', autoResize);
+        messageInput.focus();
+        console.log('✅ Чат загружен. Задавайте вопросы!');
+    </script>
+</body>
+</html>
