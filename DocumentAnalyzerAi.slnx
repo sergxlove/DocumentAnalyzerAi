@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="DocumentAnalyzer.Core/DocumentAnalyzer.Core.csproj" />
+  <Project Path="DocumentAnalyzerAi.Web/DocumentAnalyzerAi.Web.csproj" />
+</Solution>
