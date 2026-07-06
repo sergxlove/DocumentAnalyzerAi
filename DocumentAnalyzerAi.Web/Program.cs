@@ -36,9 +36,9 @@ namespace DocumentAnalyzerAi.Web
             {
                 try
                 {
-                if (request is null)
-                    return Results.BadRequest("Сообщение не должно быть пустым");
-                    string? result = await agentService.SendMessageAsync(request.Message, token);
+                    if (request is null)
+                        return Results.BadRequest("Сообщение не должно быть пустым");
+                    string? result = await agentService.SendMessageAsync(request.Model, request.Message, token);
                     return Results.Text(result ?? "", "text/plain; charset=utf-8");
                 }
                 catch
